@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.IO;
 using UnityEditor;
 using UnityEngine;
 
@@ -25,7 +24,7 @@ public class BuildingMeshGenerator : EditorWindow
     private void GenerateBuildingMeshes()
     {
         string jsonText = System.IO.File.ReadAllText(jsonFilePath);
-        MapData mapData = JsonUtility.FromJson<MapData>(jsonText);
+        MapData mapData = UnityEngine.JsonUtility.FromJson<MapData>(jsonText);
 
         if (mapData.buildings != null)
         {
@@ -42,7 +41,7 @@ public class BuildingMeshGenerator : EditorWindow
                     vertices[i] = new Vector3(coordinates[i].x, 0, coordinates[i].y);
                 }
 
-                // Create a new GameObject and attach MeshFilter and MeshRenderer components
+                // Creazione del nuovo GameObject e allegare i componenti MeshFilter e MeshRenderer
                 GameObject buildingObject = new GameObject(type);
                 MeshFilter meshFilter = buildingObject.AddComponent<MeshFilter>();
                 MeshRenderer meshRenderer = buildingObject.AddComponent<MeshRenderer>();
@@ -59,8 +58,17 @@ public class BuildingMeshGenerator : EditorWindow
                 // Assign the mesh to the mesh filter
                 meshFilter.mesh = mesh;
 
-                // Set the material of the mesh renderer (optional)
+                // Posiziona il nuovo GameObject nella scena
+                buildingObject.transform.position = new Vector3(0, 0, 0); // Modifica le coordinate XYZ in base alle tue esigenze
+
+                // Puoi anche impostare altre proprietà del GameObject come la scala e l'orientamento
+
+                // Assegna il materiale al MeshRenderer
                 meshRenderer.sharedMaterial = new Material(Shader.Find("Standard"));
+
+                // Aggiungi ulteriori istruzioni per configurare le proprietà dei GameObject e delle mesh, se necessario
+
+
             }
         }
 
