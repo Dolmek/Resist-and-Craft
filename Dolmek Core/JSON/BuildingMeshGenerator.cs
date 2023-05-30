@@ -28,12 +28,18 @@ public class BuildingMeshGenerator : EditorWindow
 
         if (mapData.buildings != null)
         {
+            Debug.Log("Number of buildings in JSON: " + mapData.buildings.Count);
+
             foreach (BuildingData buildingData in mapData.buildings)
             {
                 string type = buildingData.type;
                 List<Vector2> coordinates = GetCoordinates(buildingData.geometry.coordinates);
 
                 int[] triangles = Triangulator.Triangulate(coordinates);
+
+                Debug.Log("Building type: " + type);
+                Debug.Log("Number of coordinates: " + coordinates.Count);
+                Debug.Log("Number of triangles: " + triangles.Length / 3);
 
                 Vector3[] vertices = new Vector3[coordinates.Count];
                 for (int i = 0; i < coordinates.Count; i++)
@@ -70,6 +76,10 @@ public class BuildingMeshGenerator : EditorWindow
 
 
             }
+        }
+        else
+        {
+            Debug.Log("No buildings found in JSON.");
         }
 
         Debug.Log("Building meshes generated.");
