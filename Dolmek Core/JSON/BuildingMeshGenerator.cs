@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEditor;
+using System.Collections.Generic;
 using System.IO;
 
 public class BuildingMeshGenerator : EditorWindow
@@ -42,12 +43,12 @@ public class BuildingMeshGenerator : EditorWindow
 
     private void CreateMeshesFromBuildingData(BuildingData buildingData)
     {
-        foreach (BuildingGeometry geometry in buildingData.features)
+        foreach (BuildingFeature feature in buildingData.features)
         {
-            if (geometry.type == "Polygon" || geometry.type == "MultiPolygon")
+            if (feature.geometry.type == "Polygon" || feature.geometry.type == "MultiPolygon")
             {
                 // Create a new GameObject for the mesh.
-                GameObject gameObject = new GameObject(geometry.id);
+                GameObject gameObject = new GameObject(feature.geometry.id);
 
                 // Create a new MeshFilter for the GameObject.
                 MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
@@ -56,10 +57,10 @@ public class BuildingMeshGenerator : EditorWindow
                 MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
 
                 // Set the materials for the MeshRenderer.
-                meshRenderer.sharedMaterials = GetMaterialsForGeometry(geometry);
+                meshRenderer.sharedMaterials = GetMaterialsForGeometry(feature.geometry);
 
                 // Create a new Mesh from the coordinates.
-                Mesh mesh = CreateMeshFromCoordinates(geometry.coordinates);
+                Mesh mesh = CreateMeshFromCoordinates(feature.geometry.coordinates);
 
                 // Set the Mesh for the MeshFilter.
                 meshFilter.sharedMesh = mesh;
@@ -86,7 +87,7 @@ public class BuildingMeshGenerator : EditorWindow
         return new Material[0];
     }
 
-    private Mesh CreateMeshFromCoordinates(Vector2[][] coordinates)
+    private Mesh CreateMeshFromCoordinates(List<List<List<Vector2>>> coordinates)
     {
         Mesh mesh = new Mesh();
 
@@ -97,22 +98,37 @@ public class BuildingMeshGenerator : EditorWindow
         List<int> triangles = new List<int>();
 
         // Loop through the coordinate arrays and add vertices and triangles.
-        foreach (Vector2[] coordinateArray in coordinates)
+        foreach (List<List<Vector2>> coordinateArray in coordinates)
         {
             int startIndex = vertices.Count;
 
             // Add vertices for each coordinate in the array.
-            foreach (Vector2 coordinate in coordinateArray)
+            foreach (List<Vector2> coordinateList in coordinateArray)
             {
-                vertices.Add(new Vector3(coordinate.x, 0f, coordinate.y));
+                foreach (Vector2 coordinate in coordinateList)
+                {
+                    vertices.Add(new Vector3(coordinate.x, 0f, coordinate.y));
+                }
             }
 
-            // Create triangles based on the vertices.
-            for (int i = 1; i < coordinateArray.Length - 1; i++)
+            // Create triangles using the vertices.
+            for (int i = 0; i < coordinateArray.Count - 1; i++)
             {
-                triangles.Add(startIndex);
-                triangles.Add(startIndex + i);
-                triangles.Add(startIndex + i + 1);
+                for (int j = 0; j < coordinateArray[i].Count - 1; j++)
+                {
+                    int index1 = startIndex + i * coordinateArray[i].Count + j;
+                    int index2 = index1 + coordinateArray[i].Count;
+                    int index3 = index2 + 1;
+                    int index4 = index1 + 1;
+
+                    triangles.Add(index1);
+                    triangles.Add(index2);
+                    triangles.Add(index3);
+
+                    triangles.Add(index1);
+                    triangles.Add(index3);
+                    triangles.Add(index4);
+                }
             }
         }
 
@@ -139,7 +155,7 @@ public class BuildingFeature
 {
     public string type;
     public string id;
-    public Vector2[][] coordinates;
+    public BuildingGeometry geometry;
     // Add additional properties if needed.
 }
 
@@ -147,8 +163,7 @@ public class BuildingFeature
 public class BuildingGeometry
 {
     public string type;
-    public string id;
     public float width;
-    public Vector2[][] coordinates;
+    public List<List<List<Vector2>>> coordinates;
     // Add additional properties if needed.
 }
