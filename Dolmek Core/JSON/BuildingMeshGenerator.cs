@@ -2,150 +2,153 @@ using UnityEngine;
 using UnityEditor;
 using System.IO;
 
-[System.Serializable]
-public class FeatureCollection
+public class BuildingMeshGenerator : EditorWindow
 {
-    public Feature[] features;
-}
+    // The JSON file that contains the data for the meshes.
+    public string jsonFilePath;
 
-[System.Serializable]
-public class Feature
-{
-    public string type;
-    public string id;
-    public BuildingData buildings;
-    // ... altre proprietà
+    [MenuItem("Window/Building Mesh Generator")]
+    public static void ShowWindow()
+    {
+        GetWindow(typeof(BuildingMeshGenerator));
+    }
+
+    void OnGUI()
+    {
+        GUILayout.Label("Create Meshes From JSON");
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("JSON File:");
+        jsonFilePath = GUILayout.TextField(jsonFilePath);
+        GUILayout.EndHorizontal();
+
+        if (GUILayout.Button("Create"))
+        {
+            if (File.Exists(jsonFilePath))
+            {
+                string jsonData = File.ReadAllText(jsonFilePath);
+
+                // Parse the JSON data into a custom data structure.
+                BuildingData buildingData = JsonUtility.FromJson<BuildingData>(jsonData);
+
+                // Process the building data and create meshes.
+                CreateMeshesFromBuildingData(buildingData);
+            }
+            else
+            {
+                Debug.LogError("JSON file does not exist!");
+            }
+        }
+    }
+
+    private void CreateMeshesFromBuildingData(BuildingData buildingData)
+    {
+        foreach (BuildingGeometry geometry in buildingData.features)
+        {
+            if (geometry.type == "Polygon" || geometry.type == "MultiPolygon")
+            {
+                // Create a new GameObject for the mesh.
+                GameObject gameObject = new GameObject(geometry.id);
+
+                // Create a new MeshFilter for the GameObject.
+                MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
+
+                // Create a new MeshRenderer for the GameObject.
+                MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
+
+                // Set the materials for the MeshRenderer.
+                meshRenderer.sharedMaterials = GetMaterialsForGeometry(geometry);
+
+                // Create a new Mesh from the coordinates.
+                Mesh mesh = CreateMeshFromCoordinates(geometry.coordinates);
+
+                // Set the Mesh for the MeshFilter.
+                meshFilter.sharedMesh = mesh;
+            }
+        }
+    }
+
+    private Material[] GetMaterialsForGeometry(BuildingGeometry geometry)
+    {
+        // Determine the materials based on the geometry type, if needed.
+        // You can customize this method to assign different materials for different geometries.
+
+        // Example: Assign a red material for polygons and a green material for multipolygons.
+        if (geometry.type == "Polygon")
+        {
+            return new Material[] { new Material(Shader.Find("Diffuse")) { color = Color.red } };
+        }
+        else if (geometry.type == "MultiPolygon")
+        {
+            return new Material[] { new Material(Shader.Find("Diffuse")) { color = Color.green } };
+        }
+
+        // If no specific materials are assigned, return an empty array.
+        return new Material[0];
+    }
+
+    private Mesh CreateMeshFromCoordinates(Vector2[][] coordinates)
+    {
+        Mesh mesh = new Mesh();
+
+        // Create a list to hold all the vertices.
+        List<Vector3> vertices = new List<Vector3>();
+
+        // Create a list to hold all the triangles.
+        List<int> triangles = new List<int>();
+
+        // Loop through the coordinate arrays and add vertices and triangles.
+        foreach (Vector2[] coordinateArray in coordinates)
+        {
+            int startIndex = vertices.Count;
+
+            // Add vertices for each coordinate in the array.
+            foreach (Vector2 coordinate in coordinateArray)
+            {
+                vertices.Add(new Vector3(coordinate.x, 0f, coordinate.y));
+            }
+
+            // Create triangles based on the vertices.
+            for (int i = 1; i < coordinateArray.Length - 1; i++)
+            {
+                triangles.Add(startIndex);
+                triangles.Add(startIndex + i);
+                triangles.Add(startIndex + i + 1);
+            }
+        }
+
+        // Assign vertices and triangles to the mesh.
+        mesh.SetVertices(vertices);
+        mesh.SetTriangles(triangles, 0);
+
+        // Recalculate normals and bounds.
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+
+        return mesh;
+    }
 }
 
 [System.Serializable]
 public class BuildingData
 {
-    public Coordinate[][] coordinates;
+    public BuildingFeature[] features;
 }
 
 [System.Serializable]
-public class Coordinate
+public class BuildingFeature
 {
-    public float[] position;
+    public string type;
+    public string id;
+    public Vector2[][] coordinates;
+    // Add additional properties if needed.
 }
 
-public class BuildingMeshGenerator : EditorWindow
+[System.Serializable]
+public class BuildingGeometry
 {
-    private string jsonFilePath = "path/to/your/json/file.json";
-    private BuildingData buildingData;
-
-    [MenuItem("Window/Building Mesh Generator")]
-    public static void ShowWindow()
-    {
-        EditorWindow.GetWindow(typeof(BuildingMeshGenerator));
-    }
-
-    private void OnGUI()
-    {
-        GUILayout.Label("Building Mesh Generator", EditorStyles.boldLabel);
-        jsonFilePath = EditorGUILayout.TextField("JSON File Path:", jsonFilePath);
-
-        if (GUILayout.Button("Generate Building Mesh"))
-        {
-            GenerateMeshFromJSON();
-        }
-    }
-
-    private void GenerateMeshFromJSON()
-    {
-        if (string.IsNullOrEmpty(jsonFilePath))
-        {
-            Debug.LogError("JSON file path is empty!");
-            return;
-        }
-
-        if (!File.Exists(jsonFilePath))
-        {
-            Debug.LogError("JSON file does not exist!");
-            return;
-        }
-
-        string jsonContent = File.ReadAllText(jsonFilePath);
-        FeatureCollection featureCollection = JsonUtility.FromJson<FeatureCollection>(jsonContent);
-
-        if (featureCollection != null && featureCollection.features != null && featureCollection.features.Length > 0)
-        {
-            foreach (Feature feature in featureCollection.features)
-            {
-                if (feature.buildings != null)
-                {
-                    buildingData = feature.buildings;
-
-                    // Aggiungi questa verifica per assicurarti che buildingData non sia null
-                    if (buildingData != null)
-                    {
-                        CreateBuildingMesh();
-                    }
-                }
-            }
-        }
-    }
-
-    private void CreateBuildingMesh()
-    {
-        // Recupera i dati dei vertici dalla buildingData
-        Coordinate[][] buildingCoordinates = buildingData.coordinates;
-
-        // Crea i vertici della mesh
-        Vector3[] vertices = new Vector3[buildingCoordinates.Length * buildingCoordinates[0].Length];
-        int vertexIndex = 0;
-        foreach (Coordinate[] coordinates in buildingCoordinates)
-        {
-            foreach (Coordinate coordinate in coordinates)
-            {
-                float x = coordinate.position[0];
-                float y = coordinate.position[1];
-                float z = coordinate.position[2];
-                Vector3 vertex = new Vector3(x, y, z);
-                vertices[vertexIndex] = vertex;
-                vertexIndex++;
-            }
-        }
-
-        // Crea le triangolazioni della mesh
-        int[] triangles = new int[(buildingCoordinates.Length - 1) * (buildingCoordinates[0].Length - 1) * 6];
-        int triangleIndex = 0;
-        for (int i = 0; i < buildingCoordinates.Length - 1; i++)
-        {
-            for (int j = 0; j < buildingCoordinates[0].Length - 1; j++)
-            {
-                int topLeft = (i * buildingCoordinates[0].Length) + j;
-                int topRight = topLeft + 1;
-                int bottomLeft = ((i + 1) * buildingCoordinates[0].Length) + j;
-                int bottomRight = bottomLeft + 1;
-
-                triangles[triangleIndex] = topLeft;
-                triangles[triangleIndex + 1] = bottomLeft;
-                triangles[triangleIndex + 2] = topRight;
-                triangles[triangleIndex + 3] = topRight;
-                triangles[triangleIndex + 4] = bottomLeft;
-                triangles[triangleIndex + 5] = bottomRight;
-
-                triangleIndex += 6;
-            }
-        }
-
-        // Crea la mesh
-        Mesh mesh = new Mesh();
-        mesh.vertices = vertices;
-        mesh.triangles = triangles;
-
-        // Assegna la mesh all'oggetto GameObject corrente o creane uno nuovo
-        GameObject buildingObject = Selection.activeGameObject;
-        if (buildingObject == null)
-        {
-            buildingObject = new GameObject("Building");
-            buildingObject.AddComponent<MeshFilter>();
-            buildingObject.AddComponent<MeshRenderer>();
-        }
-
-        buildingObject.GetComponent<MeshFilter>().sharedMesh = mesh;
-
-        Debug.Log("Building mesh generated!");
-    }
+    public string type;
+    public string id;
+    public float width;
+    public Vector2[][] coordinates;
+    // Add additional properties if needed.
 }
