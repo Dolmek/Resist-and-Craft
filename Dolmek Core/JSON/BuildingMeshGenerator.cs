@@ -3,81 +3,105 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-public class BuildingMeshGenerator : UnityEditor.EditorWindow
+public class BuildingMeshGenerator : EditorWindow
 {
-    [UnityEditor.MenuItem("Window/Building Mesh Generator")]
-    public static void ShowWindow()
-    {
-        UnityEditor.EditorWindow.GetWindow(typeof(BuildingMeshGenerator));
-    }
+    private const string jsonFilePath = "Assets/Dolmek Core/JSON/cauldronhope.json";
 
-    private string jsonFilePath = "Assets/Dolmek Core/JSON/cauldronhope.json";
+    [MenuItem("Window/Building Mesh Generator")]
+    static void Init()
+    {
+        BuildingMeshGenerator window = (BuildingMeshGenerator)EditorWindow.GetWindow(typeof(BuildingMeshGenerator));
+        window.Show();
+    }
 
     private void OnGUI()
     {
-        GUILayout.Label("Building Mesh Generator", UnityEditor.EditorStyles.boldLabel);
-
-        if (GUILayout.Button("Generate Building Mesh"))
+        if (GUILayout.Button("Generate Building Meshes"))
         {
-            GenerateBuildingMesh();
+            GenerateBuildingMeshes();
         }
     }
 
-    private void GenerateBuildingMesh()
+    private void GenerateBuildingMeshes()
     {
         string jsonText = System.IO.File.ReadAllText(jsonFilePath);
-        RootObject rootObject = JsonUtility.FromJson<RootObject>(jsonText);
+        MapData mapData = JsonUtility.FromJson<MapData>(jsonText);
 
-        List<Building> buildings = rootObject.buildings;
-
-        foreach (Building building in buildings)
+        if (mapData.buildings != null)
         {
-            string type = building.type;
-            List<List<List<float>>> coordinates = building.coordinates;
-
-            List<Vector3> vertices = new List<Vector3>();
-            List<int> triangles = new List<int>();
-
-            foreach (List<List<float>> polygon in coordinates)
+            foreach (BuildingData buildingData in mapData.buildings)
             {
-                foreach (List<float> coordinate in polygon)
+                string type = buildingData.type;
+                List<Vector2> coordinates = GetCoordinates(buildingData.geometry.coordinates);
+
+                List<Vector2> triangulatedVertices = Triangulator.Triangulate(coordinates);
+                Vector3[] vertices = new Vector3[triangulatedVertices.Count];
+                for (int i = 0; i < triangulatedVertices.Count; i++)
                 {
-                    float x = coordinate[0];
-                    float z = coordinate[1];
-
-                    vertices.Add(new Vector3(x, 0f, z));
+                    vertices[i] = new Vector3(triangulatedVertices[i].x, 0, triangulatedVertices[i].y);
                 }
+
+                int[] triangles = new int[triangulatedVertices.Count];
+                for (int i = 0; i < triangulatedVertices.Count; i++)
+                {
+                    triangles[i] = i;
+                }
+
+                // Create a new GameObject and attach MeshFilter and MeshRenderer components
+                GameObject buildingObject = new GameObject(type);
+                MeshFilter meshFilter = buildingObject.AddComponent<MeshFilter>();
+                MeshRenderer meshRenderer = buildingObject.AddComponent<MeshRenderer>();
+
+                // Create a new mesh and assign vertices and triangles
+                Mesh mesh = new Mesh();
+                mesh.vertices = vertices;
+                mesh.triangles = triangles;
+
+                // Calculate normals and bounds
+                mesh.RecalculateNormals();
+                mesh.RecalculateBounds();
+
+                // Assign the mesh to the mesh filter
+                meshFilter.mesh = mesh;
+
+                // Set the material of the mesh renderer (optional)
+                meshRenderer.sharedMaterial = new Material(Shader.Find("Standard"));
             }
-
-            int[] buildingTriangles = Triangulator.Triangulate(vertices);
-            triangles.AddRange(buildingTriangles);
-
-            Mesh mesh = new Mesh();
-            mesh.vertices = vertices.ToArray();
-            mesh.triangles = triangles.ToArray();
-            mesh.RecalculateNormals();
-
-            GameObject buildingObject = new GameObject("Building");
-            MeshFilter meshFilter = buildingObject.AddComponent<MeshFilter>();
-            MeshRenderer meshRenderer = buildingObject.AddComponent<MeshRenderer>();
-
-            meshFilter.sharedMesh = mesh;
-            meshRenderer.material = new Material(Shader.Find("Standard"));
         }
 
-        Debug.Log("Building mesh generation completed.");
+        Debug.Log("Building meshes generated.");
     }
 
-    [System.Serializable]
-    public class Building
+    private List<Vector2> GetCoordinates(List<List<float>> coordinatesList)
     {
-        public string type;
-        public List<List<List<float>>> coordinates;
-    }
+        List<Vector2> coordinates = new List<Vector2>();
 
-    [System.Serializable]
-    public class RootObject
-    {
-        public List<Building> buildings;
+        foreach (List<float> coordinate in coordinatesList)
+        {
+            float x = coordinate[0];
+            float z = coordinate[1];
+            coordinates.Add(new Vector2(x, z));
+        }
+
+        return coordinates;
     }
+}
+
+[System.Serializable]
+public class MapData
+{
+    public List<BuildingData> buildings;
+}
+
+[System.Serializable]
+public class BuildingData
+{
+    public string type;
+    public GeometryData geometry;
+}
+
+[System.Serializable]
+public class GeometryData
+{
+    public List<List<float>> coordinates;
 }
