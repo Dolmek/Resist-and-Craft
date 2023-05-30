@@ -4,7 +4,9 @@ using UnityEngine;
 
 public class BuildingMeshGenerator : EditorWindow
 {
-    private const string jsonFilePath = "Assets/Dolmek Core/JSON/cauldronhope.json";
+    public TextAsset jsonFile; // Aggiunto campo per il file JSON
+    //private const string jsonFilePath = "Assets/Dolmek Core/JSON/cauldronhope.json";
+    
 
     [MenuItem("Window/Building Mesh Generator")]
     static void Init()
@@ -15,6 +17,8 @@ public class BuildingMeshGenerator : EditorWindow
 
     private void OnGUI()
     {
+        jsonFile = (TextAsset)EditorGUILayout.ObjectField("JSON File", jsonFile, typeof(TextAsset), false);
+
         if (GUILayout.Button("Generate Building Meshes"))
         {
             GenerateBuildingMeshes();
@@ -23,23 +27,25 @@ public class BuildingMeshGenerator : EditorWindow
 
     private void GenerateBuildingMeshes()
     {
-        string jsonText = System.IO.File.ReadAllText(jsonFilePath);
+        if (jsonFile == null)
+        {
+            Debug.LogError("No JSON file selected.");
+            return;
+        }
+
+        string jsonText = jsonFile.text;
+        Debug.Log(jsonText); // Visualizza il contenuto del file JSON nella console
+
         MapData mapData = UnityEngine.JsonUtility.FromJson<MapData>(jsonText);
 
         if (mapData.buildings != null)
         {
-            Debug.Log("Number of buildings in JSON: " + mapData.buildings.Count);
-
             foreach (BuildingData buildingData in mapData.buildings)
             {
                 string type = buildingData.type;
                 List<Vector2> coordinates = GetCoordinates(buildingData.geometry.coordinates);
 
                 int[] triangles = Triangulator.Triangulate(coordinates);
-
-                Debug.Log("Building type: " + type);
-                Debug.Log("Number of coordinates: " + coordinates.Count);
-                Debug.Log("Number of triangles: " + triangles.Length / 3);
 
                 Vector3[] vertices = new Vector3[coordinates.Count];
                 for (int i = 0; i < coordinates.Count; i++)
@@ -62,7 +68,7 @@ public class BuildingMeshGenerator : EditorWindow
                 mesh.RecalculateBounds();
 
                 // Assign the mesh to the mesh filter
-                meshFilter.mesh = mesh;
+                meshFilter.sharedMesh = mesh;
 
                 // Posiziona il nuovo GameObject nella scena
                 buildingObject.transform.position = new Vector3(0, 0, 0); // Modifica le coordinate XYZ in base alle tue esigenze
@@ -73,16 +79,14 @@ public class BuildingMeshGenerator : EditorWindow
                 meshRenderer.sharedMaterial = new Material(Shader.Find("Standard"));
 
                 // Aggiungi ulteriori istruzioni per configurare le proprietà dei GameObject e delle mesh, se necessario
-
-
             }
+
+            Debug.Log("Building meshes generated.");
         }
         else
         {
             Debug.Log("No buildings found in JSON.");
         }
-
-        Debug.Log("Building meshes generated.");
     }
 
     private List<Vector2> GetCoordinates(List<List<float>> coordinatesList)
