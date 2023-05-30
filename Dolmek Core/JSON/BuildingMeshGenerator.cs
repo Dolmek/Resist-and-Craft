@@ -34,17 +34,12 @@ public class BuildingMeshGenerator : EditorWindow
                 string type = buildingData.type;
                 List<Vector2> coordinates = GetCoordinates(buildingData.geometry.coordinates);
 
-                List<Vector2> triangulatedVertices = Triangulator.Triangulate(coordinates);
-                Vector3[] vertices = new Vector3[triangulatedVertices.Count];
-                for (int i = 0; i < triangulatedVertices.Count; i++)
-                {
-                    vertices[i] = new Vector3(triangulatedVertices[i].x, 0, triangulatedVertices[i].y);
-                }
+                int[] triangles = Triangulator.Triangulate(coordinates);
 
-                int[] triangles = new int[triangulatedVertices.Count];
-                for (int i = 0; i < triangulatedVertices.Count; i++)
+                Vector3[] vertices = new Vector3[coordinates.Count];
+                for (int i = 0; i < coordinates.Count; i++)
                 {
-                    triangles[i] = i;
+                    vertices[i] = new Vector3(coordinates[i].x, 0, coordinates[i].y);
                 }
 
                 // Create a new GameObject and attach MeshFilter and MeshRenderer components
