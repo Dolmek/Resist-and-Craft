@@ -1,169 +1,107 @@
 using UnityEngine;
 using UnityEditor;
-using System.Collections.Generic;
 using System.IO;
+using System.Collections.Generic;
+using static Pinwheel.Vista.Graph.Serializer;
 
 public class BuildingMeshGenerator : EditorWindow
 {
-    // The JSON file that contains the data for the meshes.
-    public string jsonFilePath;
+    private string jsonFilePath = "Assets/Dolmek Core/JSON/cauldronhope.json";
+    private List<List<Vector2>> buildingCoordinates = new List<List<Vector2>>();
 
     [MenuItem("Window/Building Mesh Generator")]
     public static void ShowWindow()
     {
-        GetWindow(typeof(BuildingMeshGenerator));
+        GetWindow<BuildingMeshGenerator>("Building Mesh Generator");
     }
 
-    void OnGUI()
+    private void OnGUI()
     {
-        GUILayout.Label("Create Meshes From JSON");
-        GUILayout.BeginHorizontal();
-        GUILayout.Label("JSON File:");
-        jsonFilePath = GUILayout.TextField(jsonFilePath);
-        GUILayout.EndHorizontal();
+        GUILayout.Label("Building Mesh Generator", EditorStyles.boldLabel);
 
-        if (GUILayout.Button("Create"))
+        if (GUILayout.Button("Generate Building Mesh"))
         {
-            if (File.Exists(jsonFilePath))
-            {
-                string jsonData = File.ReadAllText(jsonFilePath);
-
-                // Parse the JSON data into a custom data structure.
-                BuildingData buildingData = JsonUtility.FromJson<BuildingData>(jsonData);
-
-                // Process the building data and create meshes.
-                CreateMeshesFromBuildingData(buildingData);
-            }
-            else
-            {
-                Debug.LogError("JSON file does not exist!");
-            }
+            GenerateBuildingMesh();
         }
     }
 
-    private void CreateMeshesFromBuildingData(BuildingData buildingData)
+    private void GenerateBuildingMesh()
     {
-        foreach (BuildingFeature feature in buildingData.features)
+        string jsonContent = File.ReadAllText(jsonFilePath);
+        JSONObject jsonObject = new JSONObject(jsonContent);
+
+        // Find the "buildings" object in the JSON
+        JSONObject buildingsObject = jsonObject.GetField("buildings");
+
+        // Iterate over the buildings
+        foreach (JSONObject building in buildingsObject.list)
         {
-            if (feature.geometry.type == "Polygon" || feature.geometry.type == "MultiPolygon")
+            string type = building.GetField("type").str;
+
+            // Check if the building has a "MultiPolygon" type
+            if (type == "MultiPolygon")
             {
-                // Create a new GameObject for the mesh.
-                GameObject gameObject = new GameObject(feature.geometry.id);
+                // Get the coordinates defining the building's outline
+                JSONObject coordinates = building.GetField("coordinates");
 
-                // Create a new MeshFilter for the GameObject.
-                MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
+                // Iterate over the polygons
+                foreach (JSONObject polygon in coordinates.list)
+                {
+                    List<Vector2> buildingContour = new List<Vector2>();
 
-                // Create a new MeshRenderer for the GameObject.
-                MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
+                    // Iterate over the vertices of the polygon
+                    foreach (JSONObject vertex in polygon.list)
+                    {
+                        float x = vertex.GetField("x").n;
+                        float z = vertex.GetField("z").n;
+                        Vector2 vertexPosition = new Vector2(x, z);
+                        buildingContour.Add(vertexPosition);
+                    }
 
-                // Set the materials for the MeshRenderer.
-                meshRenderer.sharedMaterials = GetMaterialsForGeometry(feature.geometry);
-
-                // Create a new Mesh from the coordinates.
-                Mesh mesh = CreateMeshFromCoordinates(feature.geometry.coordinates);
-
-                // Set the Mesh for the MeshFilter.
-                meshFilter.sharedMesh = mesh;
+                    // Add the building's contour to the list of coordinates
+                    buildingCoordinates.Add(buildingContour);
+                }
             }
         }
-    }
 
-    private Material[] GetMaterialsForGeometry(BuildingGeometry geometry)
-    {
-        // Determine the materials based on the geometry type, if needed.
-        // You can customize this method to assign different materials for different geometries.
-
-        // Example: Assign a red material for polygons and a green material for multipolygons.
-        if (geometry.type == "Polygon")
+        // Generate the building meshes
+        foreach (List<Vector2> contour in buildingCoordinates)
         {
-            return new Material[] { new Material(Shader.Find("Diffuse")) { color = Color.red } };
-        }
-        else if (geometry.type == "MultiPolygon")
-        {
-            return new Material[] { new Material(Shader.Find("Diffuse")) { color = Color.green } };
+            GenerateMeshFromContour(contour);
         }
 
-        // If no specific materials are assigned, return an empty array.
-        return new Material[0];
+        // Clear the list of building coordinates
+        buildingCoordinates.Clear();
+
+        Debug.Log("Building meshes generated successfully!");
     }
 
-    private Mesh CreateMeshFromCoordinates(List<List<List<Vector2>>> coordinates)
+    private void GenerateMeshFromContour(List<Vector2> contour)
     {
+        GameObject buildingObject = new GameObject("Building");
+        MeshFilter meshFilter = buildingObject.AddComponent<MeshFilter>();
+        MeshRenderer meshRenderer = buildingObject.AddComponent<MeshRenderer>();
         Mesh mesh = new Mesh();
 
-        // Create a list to hold all the vertices.
-        List<Vector3> vertices = new List<Vector3>();
-
-        // Create a list to hold all the triangles.
-        List<int> triangles = new List<int>();
-
-        // Loop through the coordinate arrays and add vertices and triangles.
-        foreach (List<List<Vector2>> coordinateArray in coordinates)
+        // Convert the contour vertices to 3D by setting y to 0
+        Vector3[] vertices = new Vector3[contour.Count];
+        for (int i = 0; i < contour.Count; i++)
         {
-            int startIndex = vertices.Count;
-
-            // Add vertices for each coordinate in the array.
-            foreach (List<Vector2> coordinateList in coordinateArray)
-            {
-                foreach (Vector2 coordinate in coordinateList)
-                {
-                    vertices.Add(new Vector3(coordinate.x, 0f, coordinate.y));
-                }
-            }
-
-            // Create triangles using the vertices.
-            for (int i = 0; i < coordinateArray.Count - 1; i++)
-            {
-                for (int j = 0; j < coordinateArray[i].Count - 1; j++)
-                {
-                    int index1 = startIndex + i * coordinateArray[i].Count + j;
-                    int index2 = index1 + coordinateArray[i].Count;
-                    int index3 = index2 + 1;
-                    int index4 = index1 + 1;
-
-                    triangles.Add(index1);
-                    triangles.Add(index2);
-                    triangles.Add(index3);
-
-                    triangles.Add(index1);
-                    triangles.Add(index3);
-                    triangles.Add(index4);
-                }
-            }
+            vertices[i] = new Vector3(contour[i].x, 0f, contour[i].y);
         }
 
-        // Assign vertices and triangles to the mesh.
-        mesh.SetVertices(vertices);
-        mesh.SetTriangles(triangles, 0);
+        // Generate the triangles for the mesh
+        int[] triangles = Triangulator.Triangulate(contour);
 
-        // Recalculate normals and bounds.
+        // Assign the vertices and triangles to the mesh
+        mesh.vertices = vertices;
+        mesh.triangles = triangles;
+
+        // Calculate the mesh normals and bounds
         mesh.RecalculateNormals();
         mesh.RecalculateBounds();
 
-        return mesh;
+        // Assign the mesh to the mesh filter
+        meshFilter.sharedMesh = mesh;
     }
-}
-
-[System.Serializable]
-public class BuildingData
-{
-    public BuildingFeature[] features;
-}
-
-[System.Serializable]
-public class BuildingFeature
-{
-    public string type;
-    public string id;
-    public BuildingGeometry geometry;
-    // Add additional properties if needed.
-}
-
-[System.Serializable]
-public class BuildingGeometry
-{
-    public string type;
-    public float width;
-    public List<List<List<Vector2>>> coordinates;
-    // Add additional properties if needed.
 }
