@@ -3,151 +3,125 @@ using UnityEngine;
 
 public class Triangulator
 {
-    public static int[] Triangulate(List<Vector2> contour)
+    public static int[] Triangulate(List<Vector2> points)
     {
-        List<int> triangles = new List<int>();
+        List<int> indices = new List<int>();
 
-        // Triangulate the contour using ear-clipping algorithm
-        int vertexCount = contour.Count;
-        if (vertexCount < 3)
+        int n = points.Count;
+        if (n < 3)
+            return indices.ToArray();
+
+        int[] V = new int[n];
+        if (Area(points) > 0)
         {
-            return triangles.ToArray();
-        }
-
-        int[] vertexIndices = new int[vertexCount];
-
-        // Determine the orientation of the contour (clockwise or counterclockwise)
-        float area = CalculateArea(contour);
-        bool clockwise = (area > 0f);
-
-        // Initialize the vertex indices
-        if (clockwise)
-        {
-            for (int i = 0; i < vertexCount; i++)
-            {
-                vertexIndices[i] = i;
-            }
+            for (int v = 0; v < n; v++)
+                V[v] = v;
         }
         else
         {
-            for (int i = 0; i < vertexCount; i++)
+            for (int v = 0; v < n; v++)
+                V[v] = (n - 1) - v;
+        }
+
+        int nv = n;
+        int count = 2 * nv;
+        for (int v = nv - 1; nv > 2;)
+        {
+            if ((count--) <= 0)
+                return indices.ToArray();
+
+            int u = v;
+            if (nv <= u)
+                u = 0;
+
+            v = u + 1;
+            if (nv <= v)
+                v = 0;
+
+            int w = v + 1;
+            if (nv <= w)
+                w = 0;
+
+            if (Snip(points, u, v, w, nv, V))
             {
-                vertexIndices[i] = (vertexCount - 1) - i;
+                int a, b, c, s, t;
+
+                a = V[u];
+                b = V[v];
+                c = V[w];
+                indices.Add(a);
+                indices.Add(b);
+                indices.Add(c);
+
+                for (s = v, t = v + 1; t < nv; s++, t++)
+                    V[s] = V[t];
+
+                nv--;
+                count = 2 * nv;
             }
         }
 
-        int vertexIndex = vertexCount - 1;
-        int iterations = vertexCount * vertexCount; // Avoid infinite loop
+        indices.Reverse();
+        return indices.ToArray();
+    }
 
-        while (vertexCount > 2 && iterations > 0)
+    private static float Area(List<Vector2> points)
+    {
+        int n = points.Count;
+        float A = 0.0f;
+
+        for (int p = n - 1, q = 0; q < n; p = q++)
         {
-            int previousIndex = GetPreviousIndex(vertexIndex, vertexCount);
-            int nextIndex = GetNextIndex(vertexIndex, vertexCount);
-
-            int previousVertexIndex = vertexIndices[previousIndex];
-            int currentVertexIndex = vertexIndices[vertexIndex];
-            int nextVertexIndex = vertexIndices[nextIndex];
-
-            Vector2 previousVertex = contour[previousVertexIndex];
-            Vector2 currentVertex = contour[currentVertexIndex];
-            Vector2 nextVertex = contour[nextVertexIndex];
-
-            bool isEar = IsEar(previousVertex, currentVertex, nextVertex, contour, vertexIndices, vertexCount);
-
-            if (isEar)
-            {
-                triangles.Add(previousVertexIndex);
-                triangles.Add(currentVertexIndex);
-                triangles.Add(nextVertexIndex);
-
-                vertexCount--;
-                vertexIndices = UpdateVertexIndices(vertexIndices, vertexIndex, vertexCount);
-
-                iterations = vertexCount * vertexCount;
-            }
-
-            vertexIndex = GetNextIndex(vertexIndex, vertexCount);
-            iterations--;
+            Vector2 pval = points[p];
+            Vector2 qval = points[q];
+            A += pval.x * qval.y - qval.x * pval.y;
         }
 
-        triangles.Reverse(); // Reverse the triangles to match Unity's winding order
-
-        return triangles.ToArray();
+        return (A * 0.5f);
     }
 
-    private static float CalculateArea(List<Vector2> contour)
+    private static bool Snip(List<Vector2> points, int u, int v, int w, int n, int[] V)
     {
-        int vertexCount = contour.Count;
-        float area = 0f;
+        Vector2 A = points[V[u]];
+        Vector2 B = points[V[v]];
+        Vector2 C = points[V[w]];
 
-        for (int i = 0; i < vertexCount; i++)
+        if (Mathf.Epsilon > (((B.x - A.x) * (C.y - A.y)) - ((B.y - A.y) * (C.x - A.x))))
+            return false;
+
+        for (int p = 0; p < n; p++)
         {
-            Vector2 vertex1 = contour[i];
-            Vector2 vertex2 = contour[(i + 1) % vertexCount];
-            area += (vertex1.x * vertex2.y) - (vertex2.x * vertex1.y);
+            if ((p == u) || (p == v) || (p == w))
+                continue;
+
+            Vector2 P = points[V[p]];
+
+            if (InsideTriangle(A, B, C, P))
+                return false;
         }
 
-        return 0.5f * area;
+        return true;
     }
 
-    private static bool IsEar(Vector2 previousVertex, Vector2 currentVertex, Vector2 nextVertex, List<Vector2> contour, int[] vertexIndices, int vertexCount)
+    private static bool InsideTriangle(Vector2 A, Vector2 B, Vector2 C, Vector2 P)
     {
-        bool isEar = true;
+        float ax = C.x - B.x;
+        float ay = C.y - B.y;
+        float bx = A.x - C.x;
+        float by = A.y - C.y;
+        float cx = B.x - A.x;
+        float cy = B.y - A.y;
+        float apx = P.x - A.x;
+        float apy = P.y - A.y;
+        float bpx = P.x - B.x;
+        float bpy = P.y - B.y;
+        float cpx = P.x - C.x;
+        float cpy = P.y - C.y;
 
-        for (int i = 0; i < vertexCount; i++)
-        {
-            int vertexIndex = vertexIndices[i];
+        float aCROSSbp = ax * bpy - ay * bpx;
+        float cCROSSap = cx * apy - cy * apx;
+        float bCROSScp = bx * cpy - by * cpx;
 
-            if (vertexIndex != previousVertex && vertexIndex != currentVertex && vertexIndex != nextVertex)
-            {
-                Vector2 vertex = contour[vertexIndex];
-
-                if (IsPointInsideTriangle(previousVertex, currentVertex, nextVertex, vertex))
-                {
-                    isEar = false;
-                    break;
-                }
-            }
-        }
-
-        return isEar;
-    }
-
-    private static bool IsPointInsideTriangle(Vector2 vertex1, Vector2 vertex2, Vector2 vertex3, Vector2 point)
-    {
-        float denominator = ((vertex2.y - vertex3.y) * (vertex1.x - vertex3.x)) + ((vertex3.x - vertex2.x) * (vertex1.y - vertex3.y));
-
-        float a = ((vertex2.y - vertex3.y) * (point.x - vertex3.x)) + ((vertex3.x - vertex2.x) * (point.y - vertex3.y)) / denominator;
-        float b = ((vertex3.y - vertex1.y) * (point.x - vertex3.x)) + ((vertex1.x - vertex3.x) * (point.y - vertex3.y)) / denominator;
-        float c = 1f - a - b;
-
-        return (a >= 0f && a <= 1f && b >= 0f && b <= 1f && c >= 0f && c <= 1f);
-    }
-
-    private static int[] UpdateVertexIndices(int[] vertexIndices, int vertexIndexToRemove, int vertexCount)
-    {
-        int[] updatedIndices = new int[vertexCount];
-
-        for (int i = 0, j = 0; i < vertexCount + 1; i++, j++)
-        {
-            if (j == vertexIndexToRemove)
-            {
-                j++;
-            }
-
-            updatedIndices[i] = vertexIndices[j];
-        }
-
-        return updatedIndices;
-    }
-
-    private static int GetPreviousIndex(int currentIndex, int vertexCount)
-    {
-        return (currentIndex + vertexCount - 1) % vertexCount;
-    }
-
-    private static int GetNextIndex(int currentIndex, int vertexCount)
-    {
-        return (currentIndex + 1) % vertexCount;
+        return ((aCROSSbp >= 0.0f) && (bCROSScp >= 0.0f) && (cCROSSap >= 0.0f));
     }
 }
