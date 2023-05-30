@@ -2,7 +2,6 @@ using UnityEngine;
 using UnityEditor;
 using System.IO;
 using System.Collections.Generic;
-using static Pinwheel.Vista.Graph.Serializer;
 
 public class BuildingMeshGenerator : EditorWindow
 {
