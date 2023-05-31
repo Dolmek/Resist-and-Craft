@@ -89,12 +89,12 @@ public class MapData
     public Geometry[] rivers;
     public Geometry[] planks;
     public Geometry[] buildings;
-    public Geometry[] prisms;
-    public Geometry[] squares;
-    public Geometry[] greens;
+    //public Geometry[] prisms;
+    //public Geometry[] squares;
+    //public Geometry[] greens;
     public Geometry[] fields;
-    public Coordinate[] trees;
-    public Geometry[] districts;
+    //public Coordinate[] trees;
+    //public Geometry[] districts;
 }
 
 [System.Serializable]
