@@ -1,6 +1,4 @@
 using UnityEngine;
-using System.Linq;
-
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -38,17 +36,17 @@ public class BuildingMeshGenerator : MonoBehaviour
 
             // Create mesh data from building coordinates
             Mesh mesh = new Mesh();
-            Vector3[] vertices = new Vector3[building.coordinates.Count];
+            Vector3[] vertices = new Vector3[building.coordinates.Length];
 
-            for (int i = 0; i < building.coordinates.Count; i++)
+            for (int i = 0; i < building.coordinates.Length; i++)
             {
                 vertices[i] = new Vector3(building.coordinates[i].x, 0f, building.coordinates[i].y);
             }
 
-            int[] triangles = new int[(building.coordinates.Count - 2) * 3];
+            int[] triangles = new int[(building.coordinates.Length - 2) * 3];
             int triangleIndex = 0;
 
-            for (int i = 1; i < building.coordinates.Count - 1; i++)
+            for (int i = 1; i < building.coordinates.Length - 1; i++)
             {
                 triangles[triangleIndex] = 0;
                 triangles[triangleIndex + 1] = i;
