@@ -1,124 +1,123 @@
-using System.Collections.Generic;
-using UnityEditor;
 using UnityEngine;
+using System.Linq;
 
-public class BuildingMeshGenerator : EditorWindow
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
+public class BuildingMeshGenerator : MonoBehaviour
 {
-    public TextAsset jsonFile; // Aggiunto campo per il file JSON
-    //private const string jsonFilePath = "Assets/Dolmek Core/JSON/cauldronhope.json";
-    
+    public TextAsset jsonFile;
 
-    [MenuItem("Window/Building Mesh Generator")]
-    static void Init()
+    private void OnValidate()
     {
-        BuildingMeshGenerator window = (BuildingMeshGenerator)EditorWindow.GetWindow(typeof(BuildingMeshGenerator));
-        window.Show();
+        GenerateBuildingMeshes();
     }
 
-    private void OnGUI()
-    {
-        jsonFile = (TextAsset)EditorGUILayout.ObjectField("JSON File", jsonFile, typeof(TextAsset), false);
-
-        if (GUILayout.Button("Generate Building Meshes"))
-        {
-            GenerateBuildingMeshes();
-        }
-    }
-
+    [ContextMenu("Generate Building Meshes")]
     private void GenerateBuildingMeshes()
     {
         if (jsonFile == null)
         {
-            Debug.LogError("No JSON file selected.");
+            Debug.LogError("JSON file is not assigned.");
             return;
         }
 
-        string jsonText = jsonFile.text;
-        Debug.Log(jsonText); // Visualizza il contenuto del file JSON nella console
+        // Parse JSON data
+        MapData mapData = JsonUtility.FromJson<MapData>(jsonFile.text);
 
-        MapData mapData = UnityEngine.JsonUtility.FromJson<MapData>(jsonText);
-
-        if (mapData.buildings != null)
+        // Create building meshes
+        foreach (Geometry building in mapData.buildings)
         {
-            foreach (BuildingData buildingData in mapData.buildings)
+            GameObject buildingObject = new GameObject();
+            buildingObject.transform.SetParent(transform);
+            buildingObject.name = building.type;
+
+            MeshFilter meshFilter = buildingObject.AddComponent<MeshFilter>();
+            MeshRenderer meshRenderer = buildingObject.AddComponent<MeshRenderer>();
+
+            // Create mesh data from building coordinates
+            Mesh mesh = new Mesh();
+            Vector3[] vertices = new Vector3[building.coordinates.Count];
+
+            for (int i = 0; i < building.coordinates.Count; i++)
             {
-                string type = buildingData.type;
-                List<Vector2> coordinates = GetCoordinates(buildingData.geometry.coordinates);
-
-                int[] triangles = Triangulator.Triangulate(coordinates);
-
-                Vector3[] vertices = new Vector3[coordinates.Count];
-                for (int i = 0; i < coordinates.Count; i++)
-                {
-                    vertices[i] = new Vector3(coordinates[i].x, 0, coordinates[i].y);
-                }
-
-                // Creazione del nuovo GameObject e allegare i componenti MeshFilter e MeshRenderer
-                GameObject buildingObject = new GameObject(type);
-                MeshFilter meshFilter = buildingObject.AddComponent<MeshFilter>();
-                MeshRenderer meshRenderer = buildingObject.AddComponent<MeshRenderer>();
-
-                // Create a new mesh and assign vertices and triangles
-                Mesh mesh = new Mesh();
-                mesh.vertices = vertices;
-                mesh.triangles = triangles;
-
-                // Calculate normals and bounds
-                mesh.RecalculateNormals();
-                mesh.RecalculateBounds();
-
-                // Assign the mesh to the mesh filter
-                meshFilter.sharedMesh = mesh;
-
-                // Posiziona il nuovo GameObject nella scena
-                buildingObject.transform.position = new Vector3(0, 0, 0); // Modifica le coordinate XYZ in base alle tue esigenze
-
-                // Puoi anche impostare altre proprietà del GameObject come la scala e l'orientamento
-
-                // Assegna il materiale al MeshRenderer
-                meshRenderer.sharedMaterial = new Material(Shader.Find("Standard"));
-
-                // Aggiungi ulteriori istruzioni per configurare le proprietà dei GameObject e delle mesh, se necessario
+                vertices[i] = new Vector3(building.coordinates[i].x, 0f, building.coordinates[i].y);
             }
 
-            Debug.Log("Building meshes generated.");
-        }
-        else
-        {
-            Debug.Log("No buildings found in JSON.");
+            int[] triangles = new int[(building.coordinates.Count - 2) * 3];
+            int triangleIndex = 0;
+
+            for (int i = 1; i < building.coordinates.Count - 1; i++)
+            {
+                triangles[triangleIndex] = 0;
+                triangles[triangleIndex + 1] = i;
+                triangles[triangleIndex + 2] = i + 1;
+
+                triangleIndex += 3;
+            }
+
+            // Assign mesh data to mesh
+            mesh.vertices = vertices;
+            mesh.triangles = triangles;
+
+            meshFilter.mesh = mesh;
+            meshRenderer.sharedMaterial = new Material(Shader.Find("Standard"));
         }
     }
 
-    private List<Vector2> GetCoordinates(List<List<float>> coordinatesList)
+#if UNITY_EDITOR
+    [MenuItem("GameObject/Generate Building Meshes")]
+    private static void CreateBuildingMeshes()
     {
-        List<Vector2> coordinates = new List<Vector2>();
-
-        foreach (List<float> coordinate in coordinatesList)
+        if (Selection.activeGameObject != null)
         {
-            float x = coordinate[0];
-            float z = coordinate[1];
-            coordinates.Add(new Vector2(x, z));
+            Selection.activeGameObject.AddComponent<BuildingMeshGenerator>();
         }
-
-        return coordinates;
     }
+#endif
 }
 
 [System.Serializable]
 public class MapData
 {
-    public List<BuildingData> buildings;
+    public Values values;
+    public Geometry earth;
+    public Geometry[] roads;
+    public Geometry[] walls;
+    public Geometry[] rivers;
+    public Geometry[] planks;
+    public Geometry[] buildings;
+    public Geometry[] prisms;
+    public Geometry[] squares;
+    public Geometry[] greens;
+    public Geometry[] fields;
+    public Coordinate[] trees;
+    public Geometry[] districts;
 }
 
 [System.Serializable]
-public class BuildingData
+public class Values
+{
+    public float roadWidth;
+    public float towerRadius;
+    public float wallThickness;
+    public string generator;
+    public string version;
+    public float riverWidth;
+}
+
+[System.Serializable]
+public class Geometry
 {
     public string type;
-    public GeometryData geometry;
+    public float width;
+    public Coordinate[] coordinates;
 }
 
 [System.Serializable]
-public class GeometryData
+public class Coordinate
 {
-    public List<List<float>> coordinates;
+    public float x;
+    public float y;
 }
