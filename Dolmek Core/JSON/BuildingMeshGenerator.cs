@@ -9,7 +9,10 @@ public class BuildingMeshGenerator : MonoBehaviour
 
     private void OnValidate()
     {
-        GenerateBuildingMeshes();
+        if (jsonFile != null)
+        {
+            GenerateBuildingMeshes();
+        }
     }
 
     [ContextMenu("Generate Building Meshes")]
