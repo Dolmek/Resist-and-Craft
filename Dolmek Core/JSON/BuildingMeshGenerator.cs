@@ -2,6 +2,7 @@ using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
+using Newtonsoft.Json;
 
 public class BuildingMeshGenerator : MonoBehaviour
 {
@@ -25,7 +26,7 @@ public class BuildingMeshGenerator : MonoBehaviour
         }
 
         // Parse JSON data
-        MapData mapData = JsonUtility.FromJson<MapData>(jsonFile.text);
+        MapData mapData = JsonConvert.DeserializeObject<MapData>(jsonFile.text);
 
         // Create building meshes
         foreach (Geometry building in mapData.buildings)
